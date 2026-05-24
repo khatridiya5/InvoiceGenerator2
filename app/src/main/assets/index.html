@@ -617,7 +617,7 @@ function onItemDescInput(itemId, val) {
   box.innerHTML = matches.map(s => `
   <div class="item-suggestion-item"
     onmousedown="event.preventDefault();"
-    onclick="fillItem(${item.id}, ${JSON.stringify(s.desc)}, ${JSON.stringify(s.hsn)}, ${s.rate})">
+    onclick="fillItem(${itemId}, ${JSON.stringify(s.desc)}, ${JSON.stringify(s.hsn)}, ${s.rate})">
     <span class="is-desc">${escHtml(s.desc)}</span>
     <span class="is-meta">
       <span>HSN: ${escHtml(s.hsn || '—')}</span>
