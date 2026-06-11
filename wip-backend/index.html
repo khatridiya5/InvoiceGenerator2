@@ -1,0 +1,1299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="WIP Scan"/>
+<meta name="theme-color" content="#0f172a"/>
+<link rel="manifest" href="./manifest.json"/>
+<title>WIP Scanner</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --navy:      #0f172a;
+  --navy2:     #1e293b;
+  --navy3:     #334155;
+  --blue:      #3b82f6;
+  --blue-dim:  #1d4ed8;
+  --cyan:      #22d3ee;
+  --green:     #4ade80;
+  --green-dim: #16a34a;
+  --red:       #f87171;
+  --red-dim:   #dc2626;
+  --amber:     #fbbf24;
+  --text:      #f1f5f9;
+  --muted:     #94a3b8;
+  --border:    rgba(255,255,255,0.08);
+  --surface:   rgba(255,255,255,0.05);
+  --surface2:  rgba(255,255,255,0.08);
+  --radius:    14px;
+  --radius-sm: 9px;
+  --font:      'IBM Plex Sans', system-ui, sans-serif;
+  --mono:      'IBM Plex Mono', monospace;
+  --safe-top:  env(safe-area-inset-top, 0px);
+  --safe-bot:  env(safe-area-inset-bottom, 0px);
+}
+
+html { height: 100%; background: var(--navy); }
+
+body {
+  height: 100%;
+  font-family: var(--font);
+  color: var(--text);
+  background: var(--navy);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.app {
+  position: relative;
+  z-index: 1;
+  max-width: 430px;
+  margin: 0 auto;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.status-spacer {
+  height: calc(var(--safe-top) + 12px);
+  background: var(--navy);
+  flex-shrink: 0;
+}
+
+/* ── TOP BAR ── */
+.topbar { padding: 0 18px 0; flex-shrink: 0; }
+.topbar-row {
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.topbar-icon {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--blue-dim), var(--blue));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 18px; flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(59,130,246,0.35);
+}
+.topbar-row h1 { font-size: 16px; font-weight: 600; flex: 1; letter-spacing: -0.2px; }
+.session-pill {
+  font-family: var(--mono); font-size: 11px;
+  background: var(--surface2); border: 1px solid var(--border);
+  padding: 4px 10px; border-radius: 20px; color: var(--cyan);
+  opacity: 0; transition: opacity .3s;
+}
+.session-pill.on { opacity: 1; }
+
+/* ── STEPS ── */
+.steps {
+  display: flex; align-items: center;
+  padding: 12px 18px; gap: 0; flex-shrink: 0;
+}
+.step {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 500;
+  color: var(--muted); flex: 1; transition: color .2s;
+}
+.step.active { color: var(--blue); }
+.step.done   { color: var(--green); }
+.step-num {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; flex-shrink: 0; transition: all .2s;
+}
+.step.active .step-num { background: var(--blue); border-color: var(--blue); color: #fff; }
+.step.done .step-num   { background: var(--green); border-color: var(--green); color: var(--navy); font-size: 11px; }
+.step-div { color: var(--border); font-size: 16px; margin: 0 4px; flex-shrink: 0; }
+
+/* ── SCROLLABLE BODY ── */
+.screen {
+  flex: 1; overflow-y: auto;
+  padding: 16px 18px;
+  padding-bottom: calc(16px + var(--safe-bot));
+  -webkit-overflow-scrolling: touch;
+}
+.screen::-webkit-scrollbar { display: none; }
+
+/* ── HINT ── */
+.hint {
+  text-align: center; font-size: 13px; color: var(--muted);
+  margin-bottom: 16px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+
+/* ── VIEWPORT ── */
+.viewport {
+  border-radius: var(--radius);
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 16px;
+  aspect-ratio: 4/3;
+  background: #000;
+  border: 1px solid var(--border);
+}
+#qr-reader        { width: 100% !important; border: none !important; }
+#qr-reader video  { width: 100% !important; object-fit: cover; }
+#qr-reader img    { display: none !important; }
+#qr-reader__dashboard,
+#qr-reader__header_message,
+#qr-reader__status_span,
+#qr-reader__camera_permission_button { display: none !important; }
+
+/* Part scanner viewport inside the panel */
+.part-viewport {
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  position: relative;
+  aspect-ratio: 4/3;
+  background: #000;
+  border: 1px solid var(--border);
+  margin-bottom: 12px;
+  display: none;
+}
+.part-viewport.active { display: block; }
+#qr-reader-part        { width: 100% !important; border: none !important; }
+#qr-reader-part video  { width: 100% !important; object-fit: cover; }
+#qr-reader-part img    { display: none !important; }
+#qr-reader-part__dashboard,
+#qr-reader-part__header_message,
+#qr-reader-part__status_span,
+#qr-reader-part__camera_permission_button { display: none !important; }
+
+.scan-overlay {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.scan-frame { width: 54%; aspect-ratio: 1; position: relative; }
+.sc { position: absolute; width: 22px; height: 22px; border-color: var(--cyan); border-style: solid; border-width: 0; }
+.sc.tl { top:0;left:0; border-top-width:3px; border-left-width:3px; border-radius:4px 0 0 0; }
+.sc.tr { top:0;right:0; border-top-width:3px; border-right-width:3px; border-radius:0 4px 0 0; }
+.sc.bl { bottom:0;left:0; border-bottom-width:3px; border-left-width:3px; border-radius:0 0 0 4px; }
+.sc.br { bottom:0;right:0; border-bottom-width:3px; border-right-width:3px; border-radius:0 0 4px 0; }
+.scan-beam {
+  position: absolute; height: 2px; width: 78%; left: 11%;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  box-shadow: 0 0 10px var(--cyan);
+  animation: beam 2s ease-in-out infinite;
+}
+@keyframes beam { 0%,100%{top:8%} 50%{top:92%} }
+
+/* Smaller corner brackets for part viewport */
+.scan-frame-sm { width: 60%; aspect-ratio: 1; position: relative; }
+.scan-frame-sm .sc { width: 18px; height: 18px; }
+
+.cam-idle {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 12px; background: transparent;
+}
+.cam-idle-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--surface2); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px; color: var(--muted);
+}
+.cam-idle span { font-size: 13px; color: var(--muted); }
+.cam-idle button {
+  padding: 9px 20px; background: var(--blue); color: #fff;
+  border: none; border-radius: 22px;
+  font-size: 13px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; display: flex; align-items: center; gap: 6px;
+}
+
+.scan-flash {
+  position: absolute; inset: 0;
+  background: rgba(34,211,238,0.25);
+  opacity: 0; pointer-events: none;
+  transition: opacity .1s; border-radius: var(--radius);
+}
+.scan-flash.go { opacity: 1; }
+
+.vp-label {
+  position: absolute; bottom: 10px; left: 0; right: 0;
+  text-align: center; font-size: 11px; color: rgba(255,255,255,0.4);
+}
+
+/* Part viewport status badge */
+.part-vp-status {
+  position: absolute; top: 8px; left: 0; right: 0;
+  display: flex; justify-content: center;
+}
+.part-vp-badge {
+  font-size: 11px; font-weight: 600;
+  padding: 3px 10px; border-radius: 20px;
+  background: rgba(34,211,238,0.2);
+  border: 1px solid rgba(34,211,238,0.4);
+  color: var(--cyan);
+  display: flex; align-items: center; gap: 5px;
+}
+.part-vp-badge .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--cyan);
+  animation: pulse 1s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+
+/* ── OR ── */
+.or { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.or-line { flex:1; height:1px; background: var(--border); }
+.or-text { font-size: 11px; color: var(--muted); }
+
+/* ── INPUTS ── */
+.inp {
+  width: 100%; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text);
+  font-size: 14px; font-family: var(--font); outline: none;
+  transition: border-color .15s, background .15s; -webkit-appearance: none;
+}
+.inp::placeholder { color: var(--muted); }
+.inp:focus { border-color: var(--blue); background: var(--surface2); }
+
+.inp-row { display: flex; gap: 8px; margin-bottom: 6px; }
+.inp-row .inp { flex: 1; }
+
+.select-inp {
+  flex: 1; padding: 12px 14px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); color: var(--text);
+  font-size: 14px; font-family: var(--font); outline: none; cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 12px center;
+}
+.select-inp:focus { border-color: var(--blue); }
+.select-inp option { background: var(--navy2); }
+
+.err { font-size: 12px; color: var(--red); margin-top: 5px; display: none; }
+.err.on { display: block; }
+
+/* ── BUTTONS ── */
+.btn {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  padding: 12px 16px; border: none; border-radius: var(--radius-sm);
+  font-size: 14px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; transition: all .15s; -webkit-appearance: none;
+}
+.btn:disabled { opacity: .35; cursor: not-allowed; }
+.btn-blue { background: var(--blue); color: #fff; }
+.btn-blue:hover:not(:disabled) { background: var(--blue-dim); }
+.btn-cyan { background: rgba(34,211,238,0.15); color: var(--cyan); border: 1px solid rgba(34,211,238,0.3); }
+.btn-cyan:hover:not(:disabled) { background: rgba(34,211,238,0.25); }
+.btn-green-solid { background: var(--green-dim); color: #fff; width: 100%; padding: 15px; font-size: 15px; }
+.btn-green-solid:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-icon { padding: 12px 14px; background: var(--blue); color: #fff; }
+.btn-ghost {
+  background: var(--surface); color: var(--muted);
+  border: 1px solid var(--border);
+}
+.btn-ghost:hover { background: var(--surface2); color: var(--text); }
+.btn-dashed {
+  width: 100%; padding: 13px;
+  border: 1.5px dashed var(--border);
+  border-radius: var(--radius-sm);
+  background: none; color: var(--blue);
+  font-size: 13px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px;
+  margin-bottom: 14px; transition: background .15s, border-color .15s;
+}
+.btn-dashed:hover { background: rgba(59,130,246,0.08); border-color: var(--blue); }
+
+/* ── WORKER CARD ── */
+.worker-card {
+  display: flex; align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
+}
+.avatar {
+  width: 44px; height: 44px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--blue-dim), var(--blue));
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 600; color: #fff; flex-shrink: 0;
+  box-shadow: 0 4px 10px rgba(59,130,246,0.3);
+}
+.worker-info { flex: 1; min-width: 0; }
+.worker-name { font-size: 15px; font-weight: 600; }
+.worker-dept { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.worker-code {
+  display: inline-block; margin-top: 5px;
+  font-size: 10px; font-family: var(--mono);
+  background: rgba(59,130,246,0.15); color: var(--blue);
+  padding: 2px 8px; border-radius: 10px; border: 1px solid rgba(59,130,246,0.2);
+}
+.change-btn {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 18px; padding: 4px; transition: color .15s;
+}
+.change-btn:hover { color: var(--blue); }
+
+/* ── FIELDS ROW ── */
+.fields-row { display: flex; gap: 8px; margin-bottom: 14px; }
+
+/* ── SECTION HEADER ── */
+.section-row {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+}
+.section-title { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .6px; }
+.count-pill {
+  font-size: 12px; color: var(--muted); background: var(--surface2);
+  padding: 2px 9px; border-radius: 10px;
+}
+
+/* ── PARTS ── */
+.part-item {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); padding: 11px 13px; margin-bottom: 8px;
+  transition: border-color .15s; animation: slideIn .2s ease;
+}
+@keyframes slideIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:none; } }
+.part-item:hover { border-color: rgba(255,255,255,0.15); }
+.part-icon {
+  width: 34px; height: 34px; border-radius: 8px;
+  background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--green); font-size: 16px; flex-shrink: 0;
+}
+.part-info { flex: 1; min-width: 0; overflow: hidden; }
+.part-name { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.part-meta { font-size: 11px; color: var(--muted); margin-top: 1px; font-family: var(--mono); }
+.part-del {
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 17px; padding: 4px;
+  flex-shrink: 0; transition: color .15s;
+}
+.part-del:hover { color: var(--red); }
+
+.empty-parts {
+  text-align: center; padding: 32px 0; color: var(--muted); font-size: 13px;
+}
+.empty-parts i { font-size: 32px; display: block; margin-bottom: 8px; opacity: .3; }
+
+/* ── ADD PART PANEL ── */
+.add-panel {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
+  display: none; animation: slideIn .15s ease;
+}
+.add-panel.open { display: block; }
+.panel-title {
+  font-size: 13px; font-weight: 600; color: var(--cyan);
+  margin-bottom: 10px; display: flex; align-items: center; gap: 6px;
+}
+.panel-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;
+}
+.panel-header .panel-title { margin-bottom: 0; }
+
+/* scan mode tabs */
+.scan-tabs { display: flex; gap: 6px; margin-bottom: 12px; }
+.scan-tab {
+  flex: 1; padding: 8px 10px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--muted);
+  font-size: 12px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 5px;
+  transition: all .15s;
+}
+.scan-tab.active { background: rgba(34,211,238,0.12); border-color: rgba(34,211,238,0.35); color: var(--cyan); }
+
+/* continuous scan badge */
+.continuous-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; color: var(--cyan);
+  background: rgba(34,211,238,0.1); border: 1px solid rgba(34,211,238,0.25);
+  padding: 3px 9px; border-radius: 20px; margin-bottom: 8px;
+}
+.continuous-badge .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--cyan); animation: pulse 1s ease-in-out infinite; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.chip {
+  padding: 5px 11px; border: 1px solid var(--border); border-radius: 20px;
+  font-size: 11px; font-family: var(--mono); color: var(--muted);
+  cursor: pointer; background: var(--surface2); transition: all .15s;
+}
+.chip:hover { border-color: var(--cyan); color: var(--cyan); background: rgba(34,211,238,0.08); }
+.panel-actions { display: flex; gap: 8px; margin-top: 10px; }
+.panel-actions .btn { flex: 1; }
+
+/* ── SUCCESS ── */
+.success-wrap { text-align: center; padding: 32px 0; }
+.success-icon {
+  width: 76px; height: 76px; border-radius: 50%;
+  background: rgba(74,222,128,0.15); border: 2px solid rgba(74,222,128,0.3);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; color: var(--green); margin: 0 auto 20px;
+  animation: popIn .45s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes popIn { 0%{transform:scale(0);opacity:0} 100%{transform:scale(1);opacity:1} }
+.success-title { font-size: 22px; font-weight: 600; margin-bottom: 6px; }
+.success-sub   { font-size: 14px; color: var(--muted); line-height: 1.5; margin-bottom: 24px; }
+
+.summary {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 16px; margin-bottom: 20px; text-align: left;
+}
+.sum-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.sum-row:last-child { border-bottom: none; }
+.sum-label { color: var(--muted); }
+.sum-val   { font-weight: 500; font-family: var(--mono); font-size: 12px; }
+.tag-start { color: var(--green); }
+.tag-end   { color: var(--red); }
+
+/* ── SPINNER ── */
+.spinner {
+  width: 18px; height: 18px;
+  border: 2px solid rgba(255,255,255,0.2); border-top-color: #fff;
+  border-radius: 50%; animation: spin .5s linear infinite; display: inline-block;
+}
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: calc(20px + var(--safe-bot));
+  left: 50%; transform: translateX(-50%) translateY(60px);
+  background: var(--navy2); border: 1px solid var(--border); color: var(--text);
+  padding: 10px 18px; border-radius: 22px; font-size: 13px; font-weight: 500;
+  z-index: 999; transition: transform .3s cubic-bezier(.34,1.56,.64,1);
+  white-space: nowrap; display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4); max-width: 90vw;
+}
+.toast.show { transform: translateX(-50%) translateY(0); }
+.toast.ok   { background: var(--green-dim); }
+.toast.err  { background: var(--red-dim); }
+
+/* ── INSTALL BANNER ── */
+.install-banner {
+  margin: 0 18px 14px;
+  background: linear-gradient(135deg, rgba(59,130,246,0.15), rgba(34,211,238,0.08));
+  border: 1px solid rgba(59,130,246,0.25); border-radius: var(--radius);
+  padding: 12px 14px; display: none; align-items: center; gap: 10px;
+}
+.install-banner.show { display: flex; }
+.install-banner-text { flex: 1; font-size: 13px; color: var(--muted); line-height: 1.4; }
+.install-banner-text strong { color: var(--text); display: block; font-size: 13px; margin-bottom: 2px; }
+.install-btn {
+  padding: 8px 14px; background: var(--blue); color: #fff; border: none;
+  border-radius: 20px; font-size: 12px; font-weight: 600; font-family: var(--font);
+  cursor: pointer; flex-shrink: 0;
+}
+
+/* ── OFFLINE BAR ── */
+.offline-bar {
+  background: var(--amber); color: var(--navy);
+  text-align: center; font-size: 12px; font-weight: 600;
+  padding: 7px 18px; display: none; flex-shrink: 0;
+}
+.offline-bar.show { display: block; }
+
+/* ── DIVIDER ── */
+.divider { height: 1px; background: var(--border); margin: 0 18px 14px; flex-shrink: 0; }
+
+/* ── SCAN MORE BUTTON ── */
+.scan-more-btn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 11px;
+  background: rgba(34,211,238,0.08); border: 1.5px dashed rgba(34,211,238,0.3);
+  border-radius: var(--radius-sm); color: var(--cyan);
+  font-size: 13px; font-weight: 500; font-family: var(--font);
+  cursor: pointer; margin-bottom: 14px; transition: all .15s;
+}
+.scan-more-btn:hover { background: rgba(34,211,238,0.15); border-color: var(--cyan); }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="status-spacer"></div>
+  <div class="offline-bar" id="offline-bar">⚠ No connection — scans may fail</div>
+
+  <div class="install-banner" id="install-banner">
+    <i class="ti ti-device-mobile-down" style="font-size:22px;color:var(--blue);flex-shrink:0"></i>
+    <div class="install-banner-text">
+      <strong>Install as app</strong>Tap to add to home screen for offline access
+    </div>
+    <button class="install-btn" id="install-btn">Install</button>
+  </div>
+
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="topbar-icon"><i class="ti ti-scan"></i></div>
+      <h1>WIP Scanner</h1>
+      <span class="session-pill" id="session-pill">0m 0s</span>
+    </div>
+  </div>
+
+  <div class="steps">
+    <div class="step active" id="stp1"><div class="step-num" id="sn1">1</div>Worker</div>
+    <div class="step-div">›</div>
+    <div class="step" id="stp2"><div class="step-num" id="sn2">2</div>Parts</div>
+    <div class="step-div">›</div>
+    <div class="step" id="stp3"><div class="step-num" id="sn3">3</div>Done</div>
+  </div>
+  <div class="divider"></div>
+
+  <!-- ═══ SCREEN 1 — WORKER SCAN ═══ -->
+  <div class="screen" id="scr-worker">
+    <p class="hint"><i class="ti ti-qrcode"></i> Scan worker QR badge</p>
+
+    <div class="viewport" id="viewport">
+      <div id="qr-reader"></div>
+      <div class="scan-overlay">
+        <div class="scan-frame">
+          <div class="sc tl"></div><div class="sc tr"></div>
+          <div class="sc bl"></div><div class="sc br"></div>
+          <div class="scan-beam"></div>
+        </div>
+      </div>
+      <div class="scan-flash" id="scan-flash"></div>
+      <div class="cam-idle" id="cam-idle">
+        <div class="cam-idle-icon"><i class="ti ti-camera"></i></div>
+        <span>Camera not started</span>
+        <button onclick="startWorkerCamera()"><i class="ti ti-camera"></i> Start camera</button>
+      </div>
+      <span class="vp-label" id="vp-label">Waiting for camera…</span>
+    </div>
+
+    <div class="or"><div class="or-line"></div><span class="or-text">or enter worker code manually</span><div class="or-line"></div></div>
+    <div class="inp-row">
+      <input class="inp" id="worker-inp" type="text" placeholder="e.g. WRK-001"
+        autocomplete="off" autocorrect="off" spellcheck="false" autocapitalize="characters"/>
+      <button class="btn btn-icon" id="lookup-btn" onclick="lookupWorker()">
+        <i class="ti ti-arrow-right"></i>
+      </button>
+    </div>
+    <p class="err" id="worker-err">Worker not found. Check the code.</p>
+  </div>
+
+  <!-- ═══ SCREEN 2 — PARTS + SUBMIT ═══ -->
+  <div class="screen" id="scr-parts" style="display:none">
+
+    <div class="worker-card" id="worker-card"></div>
+
+    
+
+    <!-- ── ADD PART PANEL ── -->
+    <div class="add-panel" id="add-panel">
+      <div class="panel-header">
+        <div class="panel-title"><i class="ti ti-package"></i> Add Part</div>
+        <button class="btn btn-ghost" style="padding:5px 10px;font-size:12px" onclick="closePanel()">
+          <i class="ti ti-x"></i> Close
+        </button>
+      </div>
+
+      <!-- Tabs: Camera vs Manual -->
+      <div class="scan-tabs">
+        <button class="scan-tab active" id="tab-cam" onclick="switchTab('cam')">
+          <i class="ti ti-camera"></i> Scan QR
+        </button>
+        <button class="scan-tab" id="tab-quick" onclick="switchTab('quick')">
+          <i class="ti ti-layout-grid"></i> Quick Select
+        </button>
+        <button class="scan-tab" id="tab-manual" onclick="switchTab('manual')">
+          <i class="ti ti-keyboard"></i> Type Code
+        </button>
+      </div>
+
+      <!-- TAB: Camera scan -->
+      <div id="tab-cam-content">
+        <div class="continuous-badge" id="continuous-badge" style="display:none">
+          <span class="dot"></span> Continuous scan — keep scanning parts
+        </div>
+        <div class="part-viewport" id="part-viewport">
+          <div id="qr-reader-part"></div>
+          <div class="scan-overlay">
+            <div class="scan-frame-sm">
+              <div class="sc tl"></div><div class="sc tr"></div>
+              <div class="sc bl"></div><div class="sc br"></div>
+              <div class="scan-beam"></div>
+            </div>
+          </div>
+          <div class="scan-flash" id="part-scan-flash"></div>
+          <div class="part-vp-status">
+            <div class="part-vp-badge"><span class="dot"></span> Scanning for parts…</div>
+          </div>
+        </div>
+        <div class="cam-idle" id="part-cam-idle" style="position:relative;height:80px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);margin-bottom:12px;display:flex;align-items:center;justify-content:center;gap:10px;flex-direction:row;">
+          <i class="ti ti-camera" style="font-size:20px;color:var(--muted)"></i>
+          <span style="font-size:13px;color:var(--muted)">Camera not started</span>
+          <button onclick="startPartCamera()" style="padding:6px 14px;background:var(--blue);color:#fff;border:none;border-radius:18px;font-size:12px;font-weight:500;font-family:var(--font);cursor:pointer;display:flex;align-items:center;gap:5px;"><i class="ti ti-camera"></i> Start</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-cyan" style="flex:1" onclick="toggleContinuousScan()" id="continuous-btn">
+            <i class="ti ti-repeat"></i> Enable Continuous
+          </button>
+          <button class="btn btn-ghost" onclick="closePanel()">Done</button>
+        </div>
+      </div>
+
+      <!-- TAB: Quick chips -->
+      <div id="tab-quick-content" style="display:none">
+        <div class="chips" id="chips"></div>
+        <button class="btn btn-ghost" style="width:100%" onclick="closePanel()">Cancel</button>
+      </div>
+
+      <!-- TAB: Manual type -->
+      <div id="tab-manual-content" style="display:none">
+        <input class="inp" id="part-inp" placeholder="Part QR code…" autocomplete="off" spellcheck="false" style="margin-bottom:10px"/>
+        <div class="panel-actions">
+          <button class="btn btn-ghost" onclick="closePanel()">Cancel</button>
+          <button class="btn btn-blue" onclick="confirmPart()">Add Part</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Parts list -->
+    <div class="section-row">
+      <span class="section-title">Parts scanned</span>
+      <span class="count-pill" id="count-pill">0 parts</span>
+    </div>
+    <div id="parts-list"></div>
+
+    <!-- Scan more (shown after first part added, panel is closed) -->
+    <button class="scan-more-btn" id="scan-more-btn" style="display:none" onclick="openPanel()">
+      <i class="ti ti-scan"></i> Scan more parts
+    </button>
+
+    <button class="btn-dashed" id="add-first-btn" onclick="openPanel()">
+      <i class="ti ti-plus"></i> Add / scan part
+    </button>
+
+    <button class="btn btn-green-solid" id="submit-btn" onclick="submitSession()" disabled>
+      <i class="ti ti-circle-check"></i> Submit session
+    </button>
+  </div>
+
+  <!-- ═══ SCREEN 3 — SUCCESS ═══ -->
+  <div class="screen" id="scr-done" style="display:none">
+    <div class="success-wrap">
+      <div class="success-icon"><i class="ti ti-check"></i></div>
+      <div class="success-title">Session logged!</div>
+      <div class="success-sub">WIP dashboard has been updated.</div>
+      <div class="summary" id="summary"></div>
+      <button class="btn btn-blue" style="width:100%;padding:14px;font-size:15px" onclick="reset()">
+        <i class="ti ti-refresh"></i> New scan
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// ⚙ CONFIG
+// ─────────────────────────────────────────────────────────
+const BACKEND = 'https://gst-manufacturing-backend.onrender.com';
+
+const QUICK_PARTS = [
+  { qr: 'PRD-1-0001-U001', label: 'PRD-0001 · U1' },
+  { qr: 'PRD-1-0001-U002', label: 'PRD-0001 · U2' },
+  { qr: 'PRD-1-0002-U001', label: 'PRD-0002 · U1' },
+  { qr: 'PRD-1-0002-U002', label: 'PRD-0002 · U2' },
+];
+
+// ─────────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────────
+let S = {
+  worker:       null,
+  parts:        [],
+  t0:           null,
+  tick:         null,
+  workerQR:     null,   // Html5Qrcode for worker screen
+  partQR:       null,   // Html5Qrcode for part panel
+  workerCamOn:  false,
+  partCamOn:    false,
+  continuous:   false,  // continuous scan mode
+  activeTab:    'cam',
+};
+
+// ─────────────────────────────────────────────────────────
+// UTILS
+// ─────────────────────────────────────────────────────────
+const $  = id => document.getElementById(id);
+const TS = () => new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' });
+
+function toast(msg, type='') {
+  const el = $('toast');
+  el.innerHTML = msg;
+  el.className = 'toast show' + (type ? ' '+type : '');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.className = 'toast', 3000);
+}
+function initials(n) {
+  return n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase();
+}
+function setBtn(id, loading) {
+  const b = $(id);
+  if (loading) { b._orig = b.innerHTML; b.innerHTML = '<span class="spinner"></span>'; b.disabled = true; }
+  else { b.innerHTML = b._orig || b.innerHTML; b.disabled = false; }
+}
+
+window.addEventListener('offline', () => $('offline-bar').classList.add('show'));
+window.addEventListener('online',  () => $('offline-bar').classList.remove('show'));
+
+// ─────────────────────────────────────────────────────────
+// PWA
+// ─────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault(); deferredPrompt = e;
+  $('install-banner').classList.add('show');
+});
+$('install-btn').addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const { outcome } = await deferredPrompt.userChoice;
+  if (outcome === 'accepted') $('install-banner').classList.remove('show');
+  deferredPrompt = null;
+});
+window.addEventListener('appinstalled', () => $('install-banner').classList.remove('show'));
+
+// ─────────────────────────────────────────────────────────
+// WORKER CAMERA
+// ─────────────────────────────────────────────────────────
+async function startWorkerCamera() {
+  $('cam-idle').style.display = 'none';
+  $('vp-label').textContent = 'Point at worker QR badge';
+  try {
+    if (S.workerQR) {
+      try { await S.workerQR.stop(); } catch(_){}
+      try { await S.workerQR.clear(); } catch(_){}
+    }
+    S.workerQR = new Html5Qrcode('qr-reader');
+    await S.workerQR.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 220, height: 220 } },
+      decoded => onWorkerScanned(decoded),
+      () => {}
+    );
+    S.workerCamOn = true;
+  } catch(err) {
+    $('vp-label').textContent = 'Camera error';
+    $('cam-idle').style.display = 'flex';
+    toast('<i class="ti ti-alert-triangle"></i> Camera: ' + err.message, 'err');
+  }
+}
+
+async function stopWorkerCamera() {
+  if (S.workerQR && S.workerCamOn) {
+    try { await S.workerQR.stop(); } catch(_){}
+    try { await S.workerQR.clear(); } catch(_){}
+    S.workerCamOn = false;
+  }
+}
+
+async function onWorkerScanned(text) {
+  if (S.worker) return;
+  flash('scan-flash');
+  await stopWorkerCamera();
+  $('worker-inp').value = text;
+  await lookupWorker(text);
+}
+
+// ─────────────────────────────────────────────────────────
+// PART CAMERA
+// ─────────────────────────────────────────────────────────
+async function startPartCamera() {
+  // If already running, don't restart
+  if (S.partCamOn) return;
+  
+  $('part-cam-idle').style.display = 'none';
+  $('part-viewport').classList.add('active');
+  try {
+    if (S.partQR) {
+      try { await S.partQR.stop(); } catch(_){}
+      try { await S.partQR.clear(); } catch(_){}
+      S.partQR = null;
+    }
+    S.partQR = new Html5Qrcode('qr-reader-part');
+    await S.partQR.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 180, height: 180 } },
+      decoded => onPartScanned(decoded),
+      () => {}
+    );
+    S.partCamOn = true;
+  } catch(err) {
+    $('part-viewport').classList.remove('active');
+    $('part-cam-idle').style.display = 'flex';
+    toast('<i class="ti ti-alert-triangle"></i> Camera: ' + err.message, 'err');
+  }
+}
+
+async function stopPartCamera() {
+  if (S.partQR && S.partCamOn) {
+    try { await S.partQR.stop(); } catch(_){}
+    try { await S.partQR.clear(); } catch(_){}
+    S.partCamOn = false;
+  }
+  $('part-viewport').classList.remove('active');
+  $('part-cam-idle').style.display = 'flex';
+}
+
+async function onPartScanned(decoded) {
+  flash('part-scan-flash');
+  const parsed = parseQR(decoded);
+
+  if (parsed.type === 'unknown') {
+    toast('<i class="ti ti-alert-circle"></i> Unknown QR — must start with BULK- or UNIT-', 'err');
+    pausePartCam();
+    return;
+  }
+
+  if (parsed.type === 'unit') {
+    if (S.parts.find(p => p.qr === parsed.qr)) {
+      toast('<i class="ti ti-alert-triangle"></i> Already scanned', '');
+      pausePartCam();
+      return;
+    }
+    await stopPartCamera();
+    S.parts.push({ ...parsed, qty: 1, time: TS() });
+    renderParts();
+    closePanel();
+    toast('<i class="ti ti-check"></i> ' + parsed.label + ' added', 'ok');
+    return;
+  }
+
+  if (parsed.type === 'bulk') {
+    await stopPartCamera();
+    openBulkModal(parsed);
+  }
+}
+
+function pausePartCam() {
+  if (S.partQR && S.partCamOn) {
+    S.partQR.pause();
+    setTimeout(() => { try { if (S.partQR && S.partCamOn) S.partQR.resume(); } catch(_){} }, 1500);
+  }
+}
+
+function parseQR(raw) {
+  raw = raw.trim();
+  if (raw.startsWith('BULK-')) {
+    const parts = raw.split('-');
+    const itemId = parts[1] || raw;
+    const batchId = parts.slice(2).join('-') || '';
+    const label = itemId.charAt(0).toUpperCase() + itemId.slice(1).toLowerCase();
+    return { type: 'bulk', qr: raw, itemId, batchId, label, unit: 'pcs' };
+  }
+  if (raw.startsWith('UNIT-')) {
+    const parts = raw.split('-');
+    const itemId = parts[1] || raw;
+    const serial = parts.slice(2).join('-') || '';
+    const label = itemId.charAt(0).toUpperCase() + itemId.slice(1).toLowerCase();
+    return { type: 'unit', qr: raw, itemId, serial, label };
+  }
+  return { type: 'unknown', qr: raw, label: raw };
+}
+
+
+
+function toggleContinuousScan() {
+  S.continuous = !S.continuous;
+  const btn = $('continuous-btn');
+  const badge = $('continuous-badge');
+  if (S.continuous) {
+    btn.innerHTML = '<i class="ti ti-repeat-off"></i> Stop Continuous';
+    btn.style.background = 'rgba(34,211,238,0.2)';
+    badge.style.display = 'inline-flex';
+    toast('<i class="ti ti-repeat"></i> Continuous scan ON — scan multiple parts', 'ok');
+  } else {
+    btn.innerHTML = '<i class="ti ti-repeat"></i> Enable Continuous';
+    btn.style.background = '';
+    badge.style.display = 'none';
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────
+function flash(id) {
+  const el = $(id);
+  el.classList.add('go');
+  setTimeout(() => el.classList.remove('go'), 300);
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP 1 — WORKER LOOKUP
+// ─────────────────────────────────────────────────────────
+async function lookupWorker(override) {
+  const qr = override || $('worker-inp').value.trim();
+  const errEl = $('worker-err');
+  errEl.classList.remove('on');
+  if (!qr) { errEl.textContent='Enter a worker code.'; errEl.classList.add('on'); return; }
+
+  setBtn('lookup-btn', true);
+  try {
+    const res = await fetch(`${BACKEND}/production/wip/verify-worker`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ qr_code: qr })
+    });
+    if (!res.ok) {
+      const e = await res.json().catch(()=>({detail:'Not found'}));
+      errEl.textContent = e.detail || 'Worker not found.';
+      errEl.classList.add('on');
+      setBtn('lookup-btn', false);
+      return;
+    }
+    const w = await res.json();
+    S.worker = { qr_code_data: qr, name: w.name, department: w.department };
+    S.t0   = Date.now();
+    S.tick = setInterval(tickSession, 1000);
+    setBtn('lookup-btn', false);
+    goToStep2();
+  } catch(e) {
+    errEl.textContent = 'Cannot reach server. Check connection.';
+    errEl.classList.add('on');
+    setBtn('lookup-btn', false);
+  }
+}
+
+$('worker-inp').addEventListener('keydown', e => { if(e.key==='Enter') lookupWorker(); });
+
+function tickSession() {
+  const s = Math.round((Date.now() - S.t0) / 1000);
+  const pill = $('session-pill');
+  pill.textContent = `${Math.floor(s/60)}m ${s%60}s`;
+  pill.classList.add('on');
+}
+
+// ─────────────────────────────────────────────────────────
+// STEP 2 — PARTS
+// ─────────────────────────────────────────────────────────
+function goToStep2() {
+  $('scr-worker').style.display = 'none';
+  $('scr-parts').style.display  = 'block';
+  $('stp1').classList.remove('active'); $('stp1').classList.add('done'); $('sn1').textContent = '✓';
+  $('stp2').classList.add('active');
+
+  const w = S.worker;
+  $('worker-card').innerHTML = `
+    <div class="avatar">${initials(w.name)}</div>
+    <div class="worker-info">
+      <div class="worker-name">${w.name}</div>
+      <div class="worker-dept">${w.department}</div>
+      <span class="worker-code">${w.qr_code_data}</span>
+    </div>
+    <button class="change-btn" onclick="changeWorker()" title="Change worker">
+      <i class="ti ti-edit"></i>
+    </button>`;
+
+  buildChips();
+  renderParts();
+}
+
+function changeWorker() {
+  clearInterval(S.tick);
+  stopPartCamera();
+  S = { worker:null, parts:[], t0:null, tick:null, workerQR:null, partQR:null, workerCamOn:false, partCamOn:false, continuous:false, activeTab:'cam' };
+  $('scr-parts').style.display  = 'none';
+  $('scr-worker').style.display = 'block';
+  $('stp1').classList.add('active'); $('stp1').classList.remove('done'); $('sn1').textContent = '1';
+  $('stp2').classList.remove('active');
+  $('worker-inp').value = '';
+  $('session-pill').classList.remove('on');
+  $('add-panel').classList.remove('open');
+  $('cam-idle').style.display = 'flex';
+  $('qr-reader').innerHTML = '';
+  $('vp-label').textContent = 'Waiting for camera…';
+}
+
+// ── TABS ──
+function switchTab(tab) {
+  S.activeTab = tab;
+  ['cam','quick','manual'].forEach(t => {
+    $(`tab-${t}`).classList.toggle('active', t === tab);
+    $(`tab-${t}-content`).style.display = t === tab ? 'block' : 'none';
+  });
+  if (tab !== 'cam') {
+    stopPartCamera();
+  } else {
+    // Start camera when switching TO cam tab (only if panel is open)
+    if ($('add-panel').classList.contains('open')) {
+      setTimeout(startPartCamera, 100);
+    }
+  }
+}
+
+// ── CHIPS ──
+function buildChips() {
+  $('chips').innerHTML = QUICK_PARTS.map(p =>
+    `<span class="chip" onclick="addQuick('${p.qr}','${p.label.replace(/'/g,"\\'")}')">
+      ${p.label}</span>`
+  ).join('');
+}
+
+// ── PANEL OPEN/CLOSE ──
+async function openPanel() {
+  $('add-panel').classList.add('open');
+  setTimeout(() => $('add-panel').scrollIntoView({ behavior:'smooth', block:'nearest' }), 50);
+  // Reset to cam tab and start camera (switchTab handles camera start)
+  S.activeTab = 'cam';
+  ['cam','quick','manual'].forEach(t => {
+    $(`tab-${t}`).classList.toggle('active', t === 'cam');
+    $(`tab-${t}-content`).style.display = t === 'cam' ? 'block' : 'none';
+  });
+  // Always start part camera fresh when panel opens
+  setTimeout(startPartCamera, 150);
+}
+
+
+async function closePanel() {
+  $('add-panel').classList.remove('open');
+  S.continuous = false;
+  $('continuous-btn').innerHTML = '<i class="ti ti-repeat"></i> Enable Continuous';
+  $('continuous-btn').style.background = '';
+  $('continuous-badge').style.display = 'none';
+  $('part-inp').value = '';
+  await stopPartCamera();
+  // reset tab UI back to cam for next open
+  ['cam','quick','manual'].forEach(t => {
+    $(`tab-${t}`).classList.toggle('active', t === 'cam');
+    $(`tab-${t}-content`).style.display = t === 'cam' ? 'block' : 'none';
+  });
+}
+
+function addQuick(qr, label) {
+  if (S.parts.find(p=>p.qr===qr)) { toast('Already added', ''); closePanel(); return; }
+  S.parts.push({ qr, label, time: TS() });
+  closePanel(); renderParts();
+  toast('<i class="ti ti-check"></i> Part added', 'ok');
+}
+
+function confirmPart() {
+  const val = $('part-inp').value.trim();
+  if (!val) return;
+  if (S.parts.find(p=>p.qr===val)) { toast('Already added', ''); closePanel(); return; }
+  const match = QUICK_PARTS.find(p=>p.qr===val);
+  S.parts.push({ qr: val, label: match ? match.label : val, time: TS() });
+  closePanel(); renderParts();
+  toast('<i class="ti ti-check"></i> Part added', 'ok');
+}
+
+$('part-inp').addEventListener('keydown', e => { if(e.key==='Enter') confirmPart(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closePanel(); });
+
+function removePart(qr) {
+  S.parts = S.parts.filter(p=>p.qr!==qr);
+  renderParts();
+}
+
+function renderParts() {
+  const list = $('parts-list');
+  const n = S.parts.length;
+  $('count-pill').textContent = n + (n===1?' part':' parts');
+  $('submit-btn').disabled = n === 0;
+  $('scan-more-btn').style.display = n > 0 ? 'flex' : 'none';
+  $('add-first-btn').style.display = n > 0 ? 'none' : 'flex';
+
+  if (!n) {
+    list.innerHTML = '<div class="empty-parts"><i class="ti ti-package-off"></i>No parts yet — add one above</div>';
+    return;
+  }
+  list.innerHTML = S.parts.map(p => {
+    const isBulk = p.type === 'bulk';
+    const iconStyle = isBulk
+      ? 'background:rgba(251,191,36,0.1);border:1px solid rgba(251,191,36,0.2);color:var(--amber)'
+      : 'background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.2);color:var(--green)';
+    const icon = isBulk ? 'ti-packages' : 'ti-components';
+    const qtyBadge = isBulk
+      ? `<span style="font-family:var(--mono);font-size:11px;background:rgba(251,191,36,0.15);color:var(--amber);border:1px solid rgba(251,191,36,0.2);padding:1px 7px;border-radius:8px">× ${p.qty} pcs</span>`
+      : `<span style="font-family:var(--mono);font-size:11px;color:var(--green)">#${p.serial}</span>`;
+    return `<div class="part-item">
+      <div class="part-icon" style="${iconStyle}"><i class="ti ${icon}"></i></div>
+      <div class="part-info">
+        <div class="part-name" style="display:flex;align-items:center;gap:6px">${p.label} ${qtyBadge}</div>
+        <div class="part-meta">${p.qr} · ${p.time}</div>
+      </div>
+      <button class="part-del" onclick="removePart('${p.qr}')"><i class="ti ti-trash"></i></button>
+    </div>`;
+  }).join('');
+}
+ 
+
+let pendingBulk = null;
+
+function openBulkModal(parsed) {
+  pendingBulk = parsed;
+  const overlay = document.createElement('div');
+  overlay.id = 'bulk-overlay';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:200;display:flex;align-items:flex-end;justify-content:center';
+  overlay.innerHTML = `
+    <div style="background:var(--navy2);border-radius:20px 20px 0 0;padding:24px 20px 36px;width:100%;max-width:430px">
+      <div style="width:36px;height:4px;border-radius:2px;background:var(--navy3);margin:0 auto 20px"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div style="width:40px;height:40px;border-radius:10px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.25);display:flex;align-items:center;justify-content:center;font-size:20px;color:var(--amber)"><i class="ti ti-packages"></i></div>
+        <div>
+          <div style="font-size:16px;font-weight:600">${parsed.label} (Batch ${parsed.batchId})</div>
+          <div style="font-size:12px;font-family:var(--mono);color:var(--muted)">${parsed.qr}</div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--muted);margin-bottom:8px">How many did you take?</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <button onclick="stepQty(-1)" style="width:44px;height:44px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">−</button>
+        <input id="bulk-qty-inp" type="number" min="1" value="1" inputmode="numeric"
+          style="flex:1;text-align:center;font-size:22px;font-family:var(--mono);font-weight:500;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:10px;color:var(--text);outline:none;-webkit-appearance:none"/>
+        <button onclick="stepQty(1)" style="width:44px;height:44px;border-radius:10px;background:var(--surface2);border:1px solid var(--border);color:var(--text);font-size:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0">+</button>
+        <span style="font-size:13px;color:var(--muted)">pcs</span>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-ghost" style="flex:1;padding:14px" onclick="closeBulkModal()">Cancel</button>
+        <button class="btn btn-blue" style="flex:1;padding:14px" onclick="confirmBulk()"><i class="ti ti-check"></i> Confirm</button>
+      </div>
+    </div>`;
+  document.body.appendChild(overlay);
+  setTimeout(() => document.getElementById('bulk-qty-inp').focus(), 300);
+}
+
+function stepQty(delta) {
+  const el = document.getElementById('bulk-qty-inp');
+  el.value = Math.max(1, (parseInt(el.value) || 0) + delta);
+}
+
+function closeBulkModal() {
+  const el = document.getElementById('bulk-overlay');
+  if (el) el.remove();
+  pendingBulk = null;
+  setTimeout(startPartCamera, 200);
+}
+
+function confirmBulk() {
+  const qty = parseInt(document.getElementById('bulk-qty-inp').value) || 0;
+  if (qty < 1) { toast('Enter quantity ≥ 1', 'err'); return; }
+  const p = pendingBulk;
+  const existing = S.parts.find(x => x.qr === p.qr);
+  if (existing) {
+    existing.qty += qty;
+    existing.time = TS();
+    toast('<i class="ti ti-plus"></i> +' + qty + ' added — total ' + existing.qty, 'ok');
+  } else {
+    S.parts.push({ ...p, qty, time: TS() });
+    toast('<i class="ti ti-check"></i> ' + p.label + ' × ' + qty + ' added', 'ok');
+  }
+  closeBulkModal();
+  renderParts();
+  closePanel();
+}
+
+// ─────────────────────────────────────────────────────────
+// SUBMIT
+// ─────────────────────────────────────────────────────────
+async function submitSession() {
+  
+  const w = S.worker;
+
+  $('submit-btn').disabled = true;
+  $('submit-btn').innerHTML = '<span class="spinner"></span> Submitting…';
+
+  for (const part of S.parts) {
+    try {
+      const res = await fetch(`${BACKEND}/production/wip/scan`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          worker_qr:  w.qr_code_data,
+          part_qr:    part.qr,
+          quantity:   part.qty || 1,
+          item_type:  part.type || 'unit',
+          workstation: null
+        })
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(()=>({detail:'Server error'}));
+        toast(`<i class="ti ti-alert-triangle"></i> ${part.label}: ${e.detail}`, 'err');
+        $('submit-btn').disabled = false;
+        $('submit-btn').innerHTML = '<i class="ti ti-circle-check"></i> Submit session';
+        return;
+      }
+    } catch(e) {
+      toast('<i class="ti ti-wifi-off"></i> Network error — check connection', 'err');
+      $('submit-btn').disabled = false;
+      $('submit-btn').innerHTML = '<i class="ti ti-circle-check"></i> Submit session';
+      return;
+    }
+  }
+
+  clearInterval(S.tick);
+  const elapsed = S.t0 ? Math.round((Date.now()-S.t0)/1000) : 0;
+  const typeTag  = scanType === 'start'
+    ? '<span class="tag-start">▶ Start</span>'
+    : '<span class="tag-end">■ End</span>';
+
+  $('scr-parts').style.display = 'none';
+  $('scr-done').style.display  = 'block';
+  $('stp2').classList.remove('active'); $('stp2').classList.add('done'); $('sn2').textContent = '✓';
+  $('stp3').classList.add('active');
+
+  $('summary').innerHTML = `
+    <div class="sum-row"><span class="sum-label">Worker</span><span class="sum-val">${w.name}</span></div>
+    <div class="sum-row"><span class="sum-label">Department</span><span class="sum-val">${w.department}</span></div>
+    <div class="sum-row"><span class="sum-label">Scan type</span><span class="sum-val">${typeTag}</span></div>
+    <div class="sum-row"><span class="sum-label">Workstation</span><span class="sum-val">${workstation||'—'}</span></div>
+    <div class="sum-row"><span class="sum-label">Parts</span><span class="sum-val">${S.parts.length}</span></div>
+    <div class="sum-row"><span class="sum-label">Session</span><span class="sum-val">${Math.floor(elapsed/60)}m ${elapsed%60}s</span></div>
+    <div class="sum-row"><span class="sum-label">Submitted</span><span class="sum-val">${TS()}</span></div>`;
+}
+
+// ─────────────────────────────────────────────────────────
+// RESET
+// ─────────────────────────────────────────────────────────
+function reset() {
+  clearInterval(S.tick);
+  stopPartCamera();
+  stopWorkerCamera();
+  S = { worker:null, parts:[], t0:null, tick:null, workerQR:null, partQR:null, workerCamOn:false, partCamOn:false, continuous:false, activeTab:'cam' };
+
+  $('scr-done').style.display   = 'none';
+  $('scr-worker').style.display = 'block';
+  ['stp1','stp2','stp3'].forEach(id => $(id).classList.remove('active','done'));
+  $('stp1').classList.add('active');
+  $('sn1').textContent='1'; $('sn2').textContent='2'; $('sn3').textContent='3';
+  $('worker-inp').value = '';
+  $('workstation').value = '';
+  $('session-pill').classList.remove('on');
+  $('add-panel').classList.remove('open');
+  $('worker-err').classList.remove('on');
+  $('cam-idle').style.display = 'flex';
+  $('qr-reader').innerHTML = '';
+  $('qr-reader-part').innerHTML = '';
+  $('vp-label').textContent = 'Waiting for camera…';
+  $('scan-more-btn').style.display = 'none';
+  $('add-first-btn').style.display = 'flex';
+}
+</script>
+</body>
+</html>
