@@ -1097,11 +1097,31 @@ function addQuick(qr, label) {
 function confirmPart() {
   const val = $('part-inp').value.trim();
   if (!val) return;
-  if (S.parts.find(p=>p.qr===val)) { toast('Already added', ''); closePanel(); return; }
-  const match = QUICK_PARTS.find(p=>p.qr===val);
-  S.parts.push({ qr: val, label: match ? match.label : val, time: TS() });
-  closePanel(); renderParts();
-  toast('<i class="ti ti-check"></i> Part added', 'ok');
+
+  const parsed = parseQR(val);
+
+  if (parsed.type === 'unknown') {
+    toast('<i class="ti ti-alert-circle"></i> Unknown QR — must start with BULK- or UNIT-', 'err');
+    return;
+  }
+
+  if (parsed.type === 'unit') {
+    if (S.parts.find(p => p.qr === parsed.qr)) {
+      toast('<i class="ti ti-alert-triangle"></i> Already scanned', '');
+      closePanel();
+      return;
+    }
+    S.parts.push({ ...parsed, qty: 1, time: TS() });
+    closePanel();
+    renderParts();
+    toast('<i class="ti ti-check"></i> ' + parsed.label + ' added', 'ok');
+    return;
+  }
+
+  if (parsed.type === 'bulk') {
+    closePanel();
+    openBulkModal(parsed);
+  }
 }
 
 $('part-inp').addEventListener('keydown', e => { if(e.key==='Enter') confirmPart(); });
@@ -1213,7 +1233,6 @@ function confirmBulk() {
 // SUBMIT
 // ─────────────────────────────────────────────────────────
 async function submitSession() {
-  
   const w = S.worker;
 
   $('submit-btn').disabled = true;
@@ -1228,7 +1247,6 @@ async function submitSession() {
           worker_qr:  w.qr_code_data,
           part_qr:    part.qr,
           quantity:   part.qty || 1,
-          item_type:  part.type || 'unit',
           workstation: null
         })
       });
@@ -1249,9 +1267,6 @@ async function submitSession() {
 
   clearInterval(S.tick);
   const elapsed = S.t0 ? Math.round((Date.now()-S.t0)/1000) : 0;
-  const typeTag  = scanType === 'start'
-    ? '<span class="tag-start">▶ Start</span>'
-    : '<span class="tag-end">■ End</span>';
 
   $('scr-parts').style.display = 'none';
   $('scr-done').style.display  = 'block';
@@ -1261,8 +1276,6 @@ async function submitSession() {
   $('summary').innerHTML = `
     <div class="sum-row"><span class="sum-label">Worker</span><span class="sum-val">${w.name}</span></div>
     <div class="sum-row"><span class="sum-label">Department</span><span class="sum-val">${w.department}</span></div>
-    <div class="sum-row"><span class="sum-label">Scan type</span><span class="sum-val">${typeTag}</span></div>
-    <div class="sum-row"><span class="sum-label">Workstation</span><span class="sum-val">${workstation||'—'}</span></div>
     <div class="sum-row"><span class="sum-label">Parts</span><span class="sum-val">${S.parts.length}</span></div>
     <div class="sum-row"><span class="sum-label">Session</span><span class="sum-val">${Math.floor(elapsed/60)}m ${elapsed%60}s</span></div>
     <div class="sum-row"><span class="sum-label">Submitted</span><span class="sum-val">${TS()}</span></div>`;
@@ -1283,7 +1296,7 @@ function reset() {
   $('stp1').classList.add('active');
   $('sn1').textContent='1'; $('sn2').textContent='2'; $('sn3').textContent='3';
   $('worker-inp').value = '';
-  $('workstation').value = '';
+  
   $('session-pill').classList.remove('on');
   $('add-panel').classList.remove('open');
   $('worker-err').classList.remove('on');
